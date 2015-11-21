@@ -1,19 +1,15 @@
-#!/usr/bin/env python
 
+import scrypt
 import nacl.secret
 import nacl.utils
 import nacl.hash
 import nacl.encoding
 import getpass
 import binascii
-import argparse
-import sys
-import os.path
 import re
 
 
 def encryptFile(filename, key):
-    # XXX never reuse a nonce; is this good enough? yeeup.
     nonce = nacl.utils.random(nacl.secret.SecretBox.NONCE_SIZE)
     plaintext_fh = open(filename, 'r')
     plaintext = plaintext_fh.read()
@@ -55,36 +51,9 @@ def promptlyDecryptFile(filename):
     return decryptFile(filename, key)
 
 def hashPassphrase(passphrase):
-    return nacl.hash.sha256(passphrase, encoder=nacl.encoding.RawEncoder)
+    not_stretched = nacl.hash.sha256(passphrase, encoder=nacl.encoding.RawEncoder)
+    salt = not_stretched[:10] # XXX
 
+    # XXX sufficiently paranoid?
+    return scrypt.hash(not_stretched, salt, p=1000, r=20, N=2048, buflen=32)
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--decrypt', dest='decrypt', default=False, action="store_true", help="perform secretBox decrypt operation")
-    parser.add_argument('--encrypt', dest='encrypt', default=False, action="store_true", help="perform secretBox encrypt operation")
-    parser.add_argument('args', nargs=argparse.REMAINDER)
-    args = parser.parse_args()
-    files = args.args
-
-    if args.encrypt and args.decrypt:
-        print "Must specify either encrypt or decrypt."
-        parser.print_help()
-        return -1
-
-    if not args.encrypt and not args.decrypt:
-        print "Must specify either encrypt or decrypt."
-        parser.print_help()
-        return -1
-
-    for filename in files:
-        if args.decrypt:
-            plaintext = promptlyDecryptFile(filename)
-            print plaintext
-        else:
-            ciphertext = promptlyEncryptFile(filename)
-            print ciphertext
-
-    return 0
-
-if __name__ == '__main__':
-    sys.exit(main())
